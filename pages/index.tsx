@@ -29,7 +29,7 @@ export const getStaticProps: GetStaticProps<{
   return { props: { data: data.sort(() => Math.random() - 0.5) } };
 };
 
-const Home: NextPage<InferGetStaticPropsType<typeof getStaticProps>> = ({ data }) => {
+const Index: NextPage<InferGetStaticPropsType<typeof getStaticProps>> = ({ data }) => {
   const [mouseDown, setMouseDown] = useState(false);
   const [dragX, setDragX] = useState(0);
 
@@ -50,7 +50,7 @@ const Home: NextPage<InferGetStaticPropsType<typeof getStaticProps>> = ({ data }
   return (
     <>
       <Head>
-        <title>Saivamsi Addagada - Portfolio</title>
+        <title>Saivamsi Addagada</title>
         <meta name="description" content="Portfolio - Saivamsi Addagada" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -93,4 +93,4 @@ const Home: NextPage<InferGetStaticPropsType<typeof getStaticProps>> = ({ data }
   );
 };
 
-export default Home;
+export default Index;
