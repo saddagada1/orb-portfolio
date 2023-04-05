@@ -1,48 +1,57 @@
 import { useFBO, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Dispatch, SetStateAction, useMemo, useRef, useState } from "react";
-import { Mesh, Group, Vector2 } from "three";
+import { useMemo, useRef, useState } from "react";
+import { Mesh, Group, Vector2, Vector3 } from "three";
 import { orbVertexShader, orbFragmentShader } from "@/utils/shaders";
 import { rand } from "@/utils/rand";
-import { EffectComposer, Vignette, Scanline, Glitch } from "@react-three/postprocessing";
-import { GlitchMode } from "postprocessing";
+import { EffectComposer, Vignette, Scanline, Glitch, Noise } from "@react-three/postprocessing";
+import { GlitchMode, OverrideMaterialManager } from "postprocessing";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { setTheme } from "@/redux/slices/themeSlice";
 
 interface SceneProps {
   data: string[];
   dragX: number;
-  setDragX: Dispatch<SetStateAction<number>>;
 }
 
-const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
+const Scene: React.FC<SceneProps> = ({ data, dragX }) => {
   const orb = useRef<Mesh | null>(null);
-  const text = useRef<Group | null>(null);
+  const line1 = useRef<Group | null>(null);
+  const [line1Width, setLine1Width] = useState(0);
+  const line2 = useRef<Group | null>(null);
+  const [line2Width, setLine2Width] = useState(0);
+  const line3 = useRef<Group | null>(null);
+  const [line3Width, setLine3Width] = useState(0);
   const theme = useAppSelector((store) => store.theme);
   const dispatch = useAppDispatch();
   const [orbDetail, setOrbDetail] = useState(rand(1, 5));
   const [shouldGlitch, setShouldGlitch] = useState(false);
   const mainRenderTarget = useFBO();
+  OverrideMaterialManager.workaroundEnabled = true;
 
   const uniforms = useMemo(
     () => ({
       uTexture: {
         value: null,
       },
-      uIorR: {
-        value: 2,
-      },
-      uIorG: {
-        value: 2,
-      },
-      uIorB: {
-        value: 2,
-      },
+      uIorR: { value: 1.6 },
+      uIorY: { value: 1.6 },
+      uIorG: { value: 1.6 },
+      uIorC: { value: 1.6 },
+      uIorB: { value: 1.6 },
+      uIorP: { value: 1.6 },
       uRefractPower: {
-        value: 0.2,
+        value: 0.3,
       },
       uChromaticAberration: {
-        value: 0.8,
+        value: 1.0,
+      },
+      uSaturation: { value: 1.08 },
+      uShininess: { value: 40.0 },
+      uDiffuseness: { value: 0.2 },
+      uFresnelPower: { value: 6.0 },
+      uLight: {
+        value: new Vector3(-1.0, 1.0, 1.0),
       },
       winResolution: {
         value: new Vector2(window.innerWidth, window.innerHeight).multiplyScalar(
@@ -62,19 +71,33 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
     material.uniforms.uTexture.value = mainRenderTarget.texture;
     gl.setRenderTarget(null);
     orb.current!.visible = true;
-    if (text.current!.position.x > -13) {
-      setShouldGlitch(true);
-      setTimeout(() => {
-        setDragX(0);
-        text.current!.position.x = -14;
-        setShouldGlitch(false);
-      }, 250);
+    if (
+      (line1Width !== 0 && line1.current!.position.x <= line1Width / 3) ||
+      line1.current!.position.x >= line1Width * -1
+    ) {
+      line1.current!.position.x = (line1Width / 3) * -1;
     } else {
-      text.current!.position.x -= 0.005 - dragX * 0.005;
+      line1.current!.position.x -= 0.005 - dragX * 0.005;
     }
-    orb.current!.rotation.x += 0.005;
-    orb.current!.rotation.y -= (mouse.x * 0.1 - camera.rotation.y) * 0.3;
+    if (
+      (line2Width !== 0 && line2.current!.position.x <= line2Width / 3) ||
+      line2.current!.position.x >= line2Width * -1
+    ) {
+      line2.current!.position.x = (line2Width / 3) * -1;
+    } else {
+      line2.current!.position.x -= 0.005 - dragX * 0.005;
+    }
+    if (
+      (line3Width !== 0 && line3.current!.position.x <= line3Width / 3) ||
+      line3.current!.position.x >= line3Width * -1
+    ) {
+      line3.current!.position.x = (line3Width / 3) * -1;
+    } else {
+      line3.current!.position.x -= 0.005 - dragX * 0.005;
+    }
     camera.rotation.y += (mouse.x * 0.1 - camera.rotation.y) * 0.02;
+    orb.current!.rotation.x -= (mouse.y * 0.1 - camera.rotation.x) * 0.2;
+    orb.current!.rotation.y -= (mouse.x * 0.1 - camera.rotation.y) * 0.2;
     if (clock.elapsedTime % 1 > 0.99 && Math.round(clock.elapsedTime) % rand(5, 7) === 0) {
       setShouldGlitch(true);
       setTimeout(() => {
@@ -85,7 +108,7 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
           setOrbDetail(rand(1, 5));
         }
         setShouldGlitch(false);
-      }, 100 * rand(1, 4));
+      }, 100 * rand(2, 4));
     }
   });
 
@@ -101,9 +124,10 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
           mode={GlitchMode.CONSTANT_MILD}
           active={shouldGlitch}
         />
+        <Noise premultiply={true} opacity={0.5} />
         <Scanline density={2} opacity={0.75} />
       </EffectComposer>
-      <group position={[0, -1, 0]}>
+      <group position={[0, 0, 0]}>
         <mesh
           ref={orb}
           onClick={(event) => {
@@ -122,6 +146,16 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
                 textColour: theme.textColour === "#fafafa" ? "#171717" : "#fafafa",
               })
             );
+            setShouldGlitch(true);
+            setTimeout(() => {
+              const smooth = rand(1, 20);
+              if (smooth === 20) {
+                setOrbDetail(20);
+              } else {
+                setOrbDetail(rand(1, 5));
+              }
+              setShouldGlitch(false);
+            }, 100 * rand(2, 4));
           }}
           onPointerEnter={(event) => {
             event.stopPropagation();
@@ -139,8 +173,9 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
             uniforms={uniforms}
           />
         </mesh>
-        <group ref={text} position={[-13, 0, 0]}>
+        <group position={[-13, 0, 0]}>
           <Text
+            ref={line1}
             onClick={(event) => {
               event.stopPropagation();
               alert("clicked text 1");
@@ -155,13 +190,13 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
             }}
             font="/assets/fonts/Roboto-Bold.ttf"
             color={theme.textColour}
-            anchorX="left"
-            lineHeight={0.25}
-            position={[0, 0.75, 0]}
+            position={[(line1Width / 3) * -1, 1.3, 0]}
+            onSync={({ geometry }) => setLine1Width(geometry.boundingBox.max.x * -1)}
           >
-            {data[0]}
+            {data[0].trim() + " ~ " + data[0].trim() + " ~ " + data[0].trim()}
           </Text>
           <Text
+            ref={line2}
             onClick={(event) => {
               event.stopPropagation();
               alert("clicked text 2");
@@ -176,13 +211,13 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
             }}
             font="/assets/fonts/Roboto-Bold.ttf"
             color={theme.textColour}
-            anchorX="left"
-            lineHeight={0.25}
-            position={[0, -0.45, 0]}
+            position={[(line2Width / 3) * -1, 0, 0]}
+            onSync={({ geometry }) => setLine2Width(geometry.boundingBox.max.x * -1)}
           >
-            {data[1]}
+            {data[1].trim() + " ~ " + data[1].trim() + " ~ " + data[1].trim()}
           </Text>
           <Text
+            ref={line3}
             onClick={(event) => {
               event.stopPropagation();
               alert("clicked text 3");
@@ -197,11 +232,10 @@ const Scene: React.FC<SceneProps> = ({ data, dragX, setDragX }) => {
             }}
             font="/assets/fonts/Roboto-Bold.ttf"
             color={theme.textColour}
-            anchorX="left"
-            lineHeight={0.25}
-            position={[0, -1.6, 0]}
+            position={[(line3Width / 3) * -1, -1.3, 0]}
+            onSync={({ geometry }) => setLine3Width(geometry.boundingBox.max.x * -1)}
           >
-            {data[2]}
+            {data[2].trim() + " ~ " + data[2].trim() + " ~ " + data[2].trim()}
           </Text>
         </group>
       </group>
